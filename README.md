@@ -21,3 +21,5 @@ MOVE E
 These commands will move the robot pipetter as shown below:
 
 ![Screenshot](https://github.com/VeritasSoftware/SampleBlazorServerApp/blob/master/Screenshot.JPG)
+
+[Try it out!](https://robotpipetting-sample-blazorserver-app.azurewebsites.net/)
