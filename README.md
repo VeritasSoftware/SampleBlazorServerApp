@@ -4,7 +4,7 @@
 
 A robot for pipetting can be operated by the below commands:
 
-* PLACE - Positions the pippeter at the start.
+* PLACE - Positions the pipetter at the start.
 * DROP - Places a drop in the current well. Marked as **X**.
 * MOVE - Moves the pipetter one position North, South, East, West.
 
