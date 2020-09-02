@@ -1,0 +1,252 @@
+﻿@using System.Collections
+@using System.Collections.Generic
+@using System.Text.RegularExpressions
+@using RobotPipetting.Data
+
+@inject RobotPipettingService RobotPipettingService
+
+<h3>Robot Pipetter</h3>
+
+<b>Enter no of wells per side</b>
+<br />
+<input class="input" type="text" @bind="noSquaresInEachSide"  />
+<input class="button button2" @onclick="setWellsPerSide" type="button" value="Create" />
+
+<hr />
+
+<b>Enter Commands</b>
+<br />
+<textarea rows="7" cols="50" @bind="commands">@commands</textarea>
+<br />
+<input class="button button2" @onclick="processMe" type="button" value="Process" />
+<input class="button button2" @onclick="clear" type="button" value="Clear" />
+<input class="button button2" @onclick="sample" type="button" value="Try sample" />
+<hr />
+
+<table>
+    @foreach (var wells in fakeArray)
+    {
+    <tr>
+        @foreach (var well in getWells(noSquaresInEachSide - currentElementIndex))
+        {
+            <td>
+
+                @if (presentLocation != null && ((well.X == presentLocation.X) && (well.Y == presentLocation.Y)))
+                {
+                    <div class="well present">
+                        @well.X, @well.Y
+                        @if (well.IsFull)
+                        {
+                            <div style="padding-left: 42px; padding-top: 21px;">X</div>
+                        }
+                    </div>
+                }
+                else if (well.IsFull)
+                {
+                    <div class="full">
+                        @well.X, @well.Y
+                        @if (well.IsFull)
+                        {
+                            <div style="padding-left: 42px; padding-top: 21px;">X</div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="well">
+                        @well.X, @well.Y
+                        @if (well.IsFull)
+                        {
+                            <div style="padding-left: 42px; padding-top: 21px;">X</div>
+                        }
+                    </div>
+                }
+            </td>
+        }        
+    </tr>
+        currentElementIndex = incrementIndex(currentElementIndex);
+    }
+</table>
+
+<b>Notes:</b>
+
+<ul>
+    <li>X is used to mark the well as FULL. Else EMPTY.</li>
+    <li>Maroon border indicates the current well position.</li>
+</ul>
+
+@code {
+
+    const int DEFAULT_NO_OF_WELLS_PER_SIDE = 5;
+    private int currentElementIndex = 0;
+    private int noSquaresInEachSide;
+    private int noSquares;
+    private Location presentLocation;
+    private Array fakeArray;
+    private List<Well> plate = new List<Well>();
+    private string commands;
+
+    protected override async Task OnInitializedAsync()
+    {
+        this.noSquaresInEachSide = DEFAULT_NO_OF_WELLS_PER_SIDE;
+
+        fakeArray = new Well[5];
+
+        List<Well> plate = new List<Well>();
+
+        commands = string.Empty;
+    }
+
+    int incrementIndex(int index)
+    {
+        return index + 1;
+    }
+
+    async Task setWellsPerSide()
+    {
+        if (this.noSquaresInEachSide > 0)
+        {
+            this.currentElementIndex = 0;
+            this.noSquares = noSquaresInEachSide * noSquaresInEachSide;
+            this.bind();
+            this.commands = string.Empty;
+            this.presentLocation = null;
+        }
+        else
+        {
+            this.noSquaresInEachSide = DEFAULT_NO_OF_WELLS_PER_SIDE;
+        }
+
+        await InvokeAsync(() =>
+        {
+            base.StateHasChanged();
+        });
+    }
+
+    void bind()
+    {
+        this.plate = new List<Well>();
+
+        for (var i = 0; i < this.noSquaresInEachSide; i++)
+        {
+            for (var j = 0; j < this.noSquaresInEachSide; j++)
+            {
+                this.plate.Add(new Well { X = i, Y = j, IsFull = false });
+            }
+        }
+
+        this.fakeArray = new Well[this.noSquaresInEachSide];
+    }
+
+    async Task sample()
+    {
+        this.noSquaresInEachSide = 5;
+        this.currentElementIndex = 0;
+        await this.setWellsPerSide();
+        this.commands = @"PLACE 2,2
+DROP
+MOVE N
+DROP
+MOVE E";
+        await this.process();
+    }
+
+    async Task processMe()
+    {
+        this.noSquaresInEachSide = 5;
+        this.currentElementIndex = 0;
+        this.noSquares = noSquaresInEachSide * noSquaresInEachSide;
+        this.bind();
+
+        await this.process();
+    }
+
+    async Task process()
+    {
+        this.noSquares = noSquaresInEachSide * noSquaresInEachSide;
+        this.bind();
+
+        //if no commands, return
+        if (!string.IsNullOrEmpty(this.commands) && Regex.Match(this.commands, @"^\s*$").Success)
+        {
+            return;
+        }
+
+        //process commands
+        var commands = this.RobotPipettingService.ParseCommands(this.commands);
+
+        bool isPlaced = false;
+
+        commands.ToList().ForEach(command =>
+        {
+            if (command != null)
+            {
+                switch (command.Name)
+                {
+                    case CommandType.PLACE:
+                        var location = this.RobotPipettingService.ParsePlaceArgs(command.Arguments);
+
+                        if (location != null && this.isInBounds(location.X, location.Y, this.noSquaresInEachSide))
+                        {
+                            this.presentLocation = location;
+                            isPlaced = true;
+                        }
+                        break;
+                    case CommandType.DROP:
+                        if (isPlaced)
+                        {
+                            var well = this.getWell(this.presentLocation.X, this.presentLocation.Y);
+
+                            well.IsFull = true;
+                        }
+                        break;
+                    case CommandType.MOVE:
+                        if (isPlaced)
+                        {
+                            var locationAfterMove = this.RobotPipettingService.ParseMoveArg(this.presentLocation, command.Arguments);
+
+                            if (locationAfterMove != null && this.isInBounds(locationAfterMove.X, locationAfterMove.Y, this.noSquaresInEachSide))
+                            {
+                                this.presentLocation = locationAfterMove;
+                            }
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        });
+
+        await InvokeAsync(() =>
+        {
+            base.StateHasChanged();
+        });
+    }
+
+    List<Well> getWells(int y)
+    {
+        return this.plate.Where(x => x.Y == (y - 1)).ToList();
+    }
+
+    Well getWell(int x, int y)
+    {
+        var well = this.plate.Find(z => z.X == x && z.Y == y);
+
+        if (well != null)
+            return well;
+
+        return null;
+    }
+
+    bool isInBounds(int x, int y, int noOfWellsPerSide)
+    {
+        return (x >= 0 && x < noOfWellsPerSide) && (y >= 0 && y < noOfWellsPerSide);
+    }
+
+    void clear()
+    {
+        this.commands = string.Empty;
+        this.presentLocation = null;
+        this.bind();
+    }
+}
