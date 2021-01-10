@@ -1,5 +1,7 @@
 # Blazor Server Demo Application
 
+[**Blazor Web Assembly Demo Application**](https://github.com/VeritasSoftware/SampleBlazorWebAssemblyApp)
+
 ## Robot Pipetter
 
 A robot for pipetting can be operated by the below commands:
